@@ -51,6 +51,27 @@ bun --cwd apps/cli run build
 # produces apps/cli/dist/comment-md
 ```
 
+## MCP server
+
+The CLI doubles as a stdio MCP server. Run `comment-md mcp` (with
+`COMMENT_MD_SERVER_URL` set) and it exposes five tools that mirror the CLI
+commands: `create_note`, `update_note`, `list_comments`, `reply_to_thread`,
+`resolve_thread`. Hook it into any MCP client (e.g. Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "comment-md": {
+      "command": "comment-md",
+      "args": ["mcp"],
+      "env": {
+        "COMMENT_MD_SERVER_URL": "http://127.0.0.1:3210"
+      }
+    }
+  }
+}
+```
+
 ## Docker
 
 ```bash

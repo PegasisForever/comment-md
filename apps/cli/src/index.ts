@@ -4,6 +4,8 @@ import type { AppRouter } from "@comment-md/api";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
+const VERSION = "0.1.1";
+
 const USAGE = `comment-md — markdown notes with inline comments
 
 usage:
@@ -12,6 +14,7 @@ usage:
   comment-md list-comments <noteId> [--include-resolved]
   comment-md reply <threadId> "<body>"
   comment-md resolve <threadId>
+  comment-md mcp                                       run an MCP server over stdio
 
 env:
   COMMENT_MD_SERVER_URL=<url>      required, e.g. http://127.0.0.1:3210
@@ -162,6 +165,176 @@ async function cmdResolve(threadId: string | undefined) {
   await client.comment.resolve.mutate({ threadId: threadId! });
 }
 
+async function cmdMcp() {
+  // Validate config eagerly so the agent sees a clear failure on startup
+  // rather than a cryptic error on the first tool call.
+  getServerUrl();
+
+  // Imports are dynamic so the MCP SDK is only loaded when actually needed.
+  // bun's --compile bundles them either way; this keeps startup snappy for
+  // the plain CLI commands.
+  const { McpServer } = await import(
+    "@modelcontextprotocol/sdk/server/mcp.js"
+  );
+  const { StdioServerTransport } = await import(
+    "@modelcontextprotocol/sdk/server/stdio.js"
+  );
+  const { z } = await import("zod");
+
+  const server = new McpServer({
+    name: "comment-md",
+    version: VERSION,
+  });
+
+  const textResult = (text: string) => ({
+    content: [{ type: "text" as const, text }],
+  });
+  const errorResult = (err: unknown) => ({
+    content: [
+      {
+        type: "text" as const,
+        text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    ],
+    isError: true,
+  });
+
+  server.tool(
+    "create_note",
+    "Create a new markdown note. Returns the noteId and a share URL the user can open in the comment-md web UI. Use this when the user wants to share a document for review.",
+    {
+      markdown: z
+        .string()
+        .describe("Full markdown content of the new note."),
+      title: z
+        .string()
+        .describe(
+          "Title shown in the web UI header. Pass an empty string to let the UI fall back to the noteId.",
+        ),
+    },
+    async ({ markdown, title }) => {
+      try {
+        const client = makeClient();
+        const res = await client.note.create.mutate({ markdown, title });
+        const url = `${shareBaseUrl()}/notes/${res.noteId}`;
+        return textResult(`noteId: ${res.noteId}\nurl: ${url}`);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.tool(
+    "update_note",
+    "Replace an existing note's content with a new version. The previous version is preserved on the server for diffs but its comments stop appearing in the open list. Use this when revising a shared document after feedback.",
+    {
+      noteId: z.string().describe("The note to update."),
+      markdown: z.string().describe("New full markdown content."),
+      title: z
+        .string()
+        .describe(
+          "New title for the note. Pass an empty string to clear the title (the UI will fall back to the noteId).",
+        ),
+    },
+    async ({ noteId, markdown, title }) => {
+      try {
+        const client = makeClient();
+        await client.note.update.mutate({ noteId, markdown, title });
+        const url = `${shareBaseUrl()}/notes/${noteId}`;
+        return textResult(`noteId: ${noteId}\nurl: ${url}`);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.tool(
+    "list_comments",
+    "List comment threads on the latest version of a note. By default only open (unresolved) threads are returned. Threads on previous versions are not surfaced.",
+    {
+      noteId: z.string().describe("The note whose comments to list."),
+      includeResolved: z
+        .boolean()
+        .optional()
+        .describe(
+          "When true, resolved threads are included alongside open ones.",
+        ),
+    },
+    async ({ noteId, includeResolved }) => {
+      try {
+        const client = makeClient();
+        const threads = await client.comment.list.query({
+          noteId,
+          includeResolved: includeResolved ?? false,
+        });
+        if (threads.length === 0) {
+          return textResult("(no comments)");
+        }
+        const lines: string[] = [];
+        threads.forEach((thread, idx) => {
+          const tok = thread.resolved ? "[resolved] " : "";
+          lines.push(
+            `thread ${thread.id} ${tok}anchor=${JSON.stringify(thread.anchor.quote)}`,
+          );
+          for (const msg of thread.messages) {
+            lines.push(
+              `  ${msg.id} ${msg.author} ${toSecondPrecisionIso(msg.createdAt)} ${JSON.stringify(msg.body)}`,
+            );
+          }
+          if (idx < threads.length - 1) lines.push("");
+        });
+        return textResult(lines.join("\n"));
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.tool(
+    "reply_to_thread",
+    "Append a reply to an existing comment thread. The reply is recorded with author 'Agent'. The targeted thread must be on the note's latest version, otherwise this fails.",
+    {
+      threadId: z.string().describe("The thread to reply to."),
+      body: z.string().describe("Reply text. Plain text; no markdown rendering."),
+    },
+    async ({ threadId, body }) => {
+      try {
+        const client = makeClient();
+        await client.comment.reply.mutate({ threadId, body, author: "Agent" });
+        return textResult(`replied to ${threadId}`);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.tool(
+    "resolve_thread",
+    "Mark a comment thread as resolved. Resolved threads disappear from the open list and are collapsed in the web UI. The thread must be on the latest version.",
+    {
+      threadId: z.string().describe("The thread to resolve."),
+    },
+    async ({ threadId }) => {
+      try {
+        const client = makeClient();
+        await client.comment.resolve.mutate({ threadId });
+        return textResult(`resolved ${threadId}`);
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  // Keep the process alive until stdin closes. Bun keeps stdin readers
+  // ref'd, so this resolves when the parent disconnects.
+  await new Promise<void>((resolve) => {
+    process.stdin.on("end", () => resolve());
+    process.stdin.on("close", () => resolve());
+  });
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const cmd = argv[0];
@@ -187,6 +360,9 @@ async function main() {
         return;
       case "resolve":
         await cmdResolve(argv[1]);
+        return;
+      case "mcp":
+        await cmdMcp();
         return;
       default:
         die(`error: unknown command '${cmd}'\n\n${USAGE}`);

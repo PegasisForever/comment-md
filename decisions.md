@@ -173,6 +173,23 @@ pipelines.)
 `thread <id> [resolved] anchor=<json-quote>` — there is a single space on
 each side of `[resolved]`, never a double space.
 
+## MCP server (reinstated)
+
+The original spec dropped the MCP server. Reinstated after the initial
+release as the `comment-md mcp` subcommand — running it starts an MCP
+stdio server that exposes five tools:
+
+- `create_note(markdown, title)`
+- `update_note(noteId, markdown, title)`
+- `list_comments(noteId, includeResolved?)`
+- `reply_to_thread(threadId, body)` (always `Agent`)
+- `resolve_thread(threadId)`
+
+Each tool is a thin wrapper around the existing tRPC procedures the CLI
+already calls, so there is no second API surface to keep in sync. The
+SDK is dynamically imported only when the `mcp` subcommand runs, keeping
+plain CLI invocations fast.
+
 ## 14. `create` / `update` stdout and share URL
 
 `create` and `update` both print **two lines** on success:
