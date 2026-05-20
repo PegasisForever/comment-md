@@ -1,7 +1,7 @@
 services:
   comment-md:
     build: .
-    image: comment-md:latest
+    image: pegasis0/comment-md:latest
     container_name: comment-md
     restart: unless-stopped
     ports:
@@ -15,12 +15,6 @@ services:
       # COMMENT_MD_SHARE_BASE_URL: https://notes.example.com
     volumes:
       - comment-md-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "bun -e 'fetch(\"http://127.0.0.1:3210/healthz\").then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))'"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
 volumes:
   comment-md-data:

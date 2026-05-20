@@ -47,5 +47,9 @@ VOLUME ["/data"]
 
 EXPOSE 3210
 
+# Health: hits /healthz via Bun's built-in fetch (slim image has no curl/wget).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD bun -e 'fetch("http://127.0.0.1:3210/healthz").then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))'
+
 # Entry: run migrations then start the server
 CMD ["sh", "-c", "bunx prisma migrate deploy && bun apps/server/src/index.ts"]

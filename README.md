@@ -54,8 +54,8 @@ bun --cwd apps/cli run build
 ## Docker
 
 ```bash
-docker build -t comment-md .
-docker run --rm -p 3210:3210 -v comment-md-data:/data comment-md
+docker build -t pegasis0/comment-md .
+docker run --rm -p 3210:3210 -v comment-md-data:/data pegasis0/comment-md
 ```
 
 ### Docker Compose
