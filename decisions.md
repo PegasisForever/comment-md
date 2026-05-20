@@ -190,7 +190,7 @@ already calls, so there is no second API surface to keep in sync. The
 SDK is dynamically imported only when the `mcp` subcommand runs, keeping
 plain CLI invocations fast.
 
-## 14. `create` / `update` stdout and share URL
+## 14. `create` / `update` stdout and share URL (server-side)
 
 `create` and `update` both print **two lines** on success:
 
@@ -199,23 +199,31 @@ plain CLI invocations fast.
 <shareUrl>
 ```
 
-`<shareUrl>` is `<base>/notes/<noteId>`, where `<base>` is:
+The `shareUrl` is computed on the **server** and returned in the tRPC
+response. The server's resolution order:
 
-1. `COMMENT_MD_SHARE_BASE_URL` if set, else
-2. `COMMENT_MD_SERVER_URL` (always required).
+1. `COMMENT_MD_SHARE_BASE_URL` env on the server (the canonical knob).
+2. `X-Forwarded-Proto` / `X-Forwarded-Host` from the inbound request (in
+   case a reverse proxy is in front and the env var isn't set).
+3. The request's own scheme + `Host` header (covers localhost dev).
 
-Trailing slashes on the base are stripped.
+The CLI honors a same-named env var (`COMMENT_MD_SHARE_BASE_URL`) as a
+**client-side override** for local testing — when set, the CLI replaces
+the server-returned URL with `<override>/notes/<noteId>`. In production,
+configure the server.
 
-**Rationale:** the original spec said `create` stdout was the `noteId` only.
-That was good for shell composition but unhelpful when an agent wants to
-surface a clickable share link. Always printing both lets callers pick the
-field they want (`head -1` for id, `tail -1` for URL) without needing the
-agent to know whether a share base is configured. `update` mirrors the same
-output so agents can re-link to a note after pushing a new version.
+**Rationale:**
+- Single source of truth: one server, one share base, every agent gets
+  the right link without per-client config.
+- A reverse-proxy deployment that forwards `X-Forwarded-*` headers Just
+  Works without setting the env var.
+- The CLI override is the escape hatch — for example, when developing
+  against a server you don't control, you can point share links at your
+  own tunnel.
 
-The share-base env var is separate from the API server URL so the link the
-agent surfaces can point at a public proxy / nicer hostname while the CLI
-still talks to the local tRPC endpoint.
+Always printing both lines (no JSON, no flag toggle) keeps the original
+"shell-friendly" contract: scripts read the id with `head -1` and the URL
+with `tail -1`.
 
 ## 15. Out of scope confirmations
 

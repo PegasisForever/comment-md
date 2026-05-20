@@ -24,6 +24,30 @@ async function getLatestVersion(noteId: string) {
   });
 }
 
+// buildShareUrl computes the URL agents/users see for a note.
+//
+// Priority:
+//   1. COMMENT_MD_SHARE_BASE_URL env on the server — single source of truth
+//      for "this server is reachable at <X>".
+//   2. X-Forwarded-Proto / X-Forwarded-Host headers, in case the server
+//      sits behind a reverse proxy that knows the public origin.
+//   3. The request's own scheme + Host header (covers localhost dev).
+function buildShareUrl(req: Request, noteId: string): string {
+  const explicit = (process.env.COMMENT_MD_SHARE_BASE_URL ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+  if (explicit) return `${explicit}/notes/${noteId}`;
+
+  const url = new URL(req.url);
+  const xfProto = req.headers.get("x-forwarded-proto");
+  const xfHost = req.headers.get("x-forwarded-host");
+  const proto = (xfProto ?? url.protocol.replace(":", "")).split(",")[0]!.trim();
+  const host = (xfHost ?? req.headers.get("host") ?? url.host)
+    .split(",")[0]!
+    .trim();
+  return `${proto}://${host}/notes/${noteId}`;
+}
+
 function toThreadDTO(thread: {
   id: string;
   resolved: boolean;
@@ -65,7 +89,7 @@ function toThreadDTO(thread: {
 const noteRouter = router({
   create: publicProcedure
     .input(noteCreateInput)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const note = await prisma.note.create({
         data: {
           title: input.title,
@@ -76,12 +100,15 @@ const noteRouter = router({
           },
         },
       });
-      return { noteId: note.id };
+      return {
+        noteId: note.id,
+        shareUrl: buildShareUrl(ctx.req, note.id),
+      };
     }),
 
   update: publicProcedure
     .input(noteUpdateInput)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const existing = await prisma.note.findUnique({
         where: { id: input.noteId },
       });
@@ -100,7 +127,10 @@ const noteRouter = router({
           },
         }),
       ]);
-      return;
+      return {
+        noteId: input.noteId,
+        shareUrl: buildShareUrl(ctx.req, input.noteId),
+      };
     }),
 
   get: publicProcedure

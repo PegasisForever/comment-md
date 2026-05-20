@@ -18,10 +18,13 @@ usage:
 
 env:
   COMMENT_MD_SERVER_URL=<url>      required, e.g. http://127.0.0.1:3210
-  COMMENT_MD_SHARE_BASE_URL=<url>  optional. Base URL used to build the
-                                   share link printed by 'create' and
-                                   'update'. Falls back to
-                                   COMMENT_MD_SERVER_URL when unset.
+  COMMENT_MD_SHARE_BASE_URL=<url>  optional client-side override. When set
+                                   the CLI replaces the server-supplied
+                                   share URL with <override>/notes/<id>.
+                                   Normally you'd configure this on the
+                                   server instead; this exists for local
+                                   testing against a server that doesn't
+                                   know its public hostname.
 
 'create' and 'update' both print two lines on success:
   <noteId>
@@ -75,14 +78,20 @@ function readFile(path: string): string {
   }
 }
 
-function shareBaseUrl(): string {
-  const share = (process.env.COMMENT_MD_SHARE_BASE_URL ?? "").trim();
-  if (share) return share.replace(/\/+$/, "");
-  return getServerUrl();
+// The server returns a shareUrl built from its own config / request host
+// headers. If the CLI environment ALSO sets COMMENT_MD_SHARE_BASE_URL we
+// honor that as a client-side override — useful for local testing against
+// a server that doesn't know its public hostname.
+function resolveShareUrl(serverShareUrl: string, noteId: string): string {
+  const cliOverride = (process.env.COMMENT_MD_SHARE_BASE_URL ?? "").trim();
+  if (cliOverride) {
+    return `${cliOverride.replace(/\/+$/, "")}/notes/${noteId}`;
+  }
+  return serverShareUrl;
 }
 
-function printIdAndUrl(noteId: string) {
-  const url = `${shareBaseUrl()}/notes/${noteId}`;
+function printIdAndUrl(noteId: string, serverShareUrl: string) {
+  const url = resolveShareUrl(serverShareUrl, noteId);
   process.stdout.write(`${noteId}\n${url}\n`);
 }
 
@@ -92,7 +101,7 @@ async function cmdCreate(path: string | undefined) {
   const title = deriveTitle(path!);
   const client = makeClient();
   const res = await client.note.create.mutate({ markdown, title });
-  printIdAndUrl(res.noteId);
+  printIdAndUrl(res.noteId, res.shareUrl);
 }
 
 async function cmdUpdate(noteId: string | undefined, path: string | undefined) {
@@ -101,8 +110,12 @@ async function cmdUpdate(noteId: string | undefined, path: string | undefined) {
   const markdown = readFile(path!);
   const title = deriveTitle(path!);
   const client = makeClient();
-  await client.note.update.mutate({ noteId: noteId!, markdown, title });
-  printIdAndUrl(noteId!);
+  const res = await client.note.update.mutate({
+    noteId: noteId!,
+    markdown,
+    title,
+  });
+  printIdAndUrl(res.noteId, res.shareUrl);
 }
 
 async function cmdListComments(noteId: string | undefined, rest: string[]) {
@@ -216,7 +229,7 @@ async function cmdMcp() {
       try {
         const client = makeClient();
         const res = await client.note.create.mutate({ markdown, title });
-        const url = `${shareBaseUrl()}/notes/${res.noteId}`;
+        const url = resolveShareUrl(res.shareUrl, res.noteId);
         return textResult(`noteId: ${res.noteId}\nurl: ${url}`);
       } catch (e) {
         return errorResult(e);
@@ -239,9 +252,13 @@ async function cmdMcp() {
     async ({ noteId, markdown, title }) => {
       try {
         const client = makeClient();
-        await client.note.update.mutate({ noteId, markdown, title });
-        const url = `${shareBaseUrl()}/notes/${noteId}`;
-        return textResult(`noteId: ${noteId}\nurl: ${url}`);
+        const res = await client.note.update.mutate({
+          noteId,
+          markdown,
+          title,
+        });
+        const url = resolveShareUrl(res.shareUrl, res.noteId);
+        return textResult(`noteId: ${res.noteId}\nurl: ${url}`);
       } catch (e) {
         return errorResult(e);
       }

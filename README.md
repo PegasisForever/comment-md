@@ -101,6 +101,9 @@ comment-md create ./your-file.md
 ```
 
 If the server sits behind a proxy with a public hostname, set
-`COMMENT_MD_SHARE_BASE_URL` (uncomment it in `docker-compose.yml`) so the
-CLI's `create`/`update` print share URLs that link to the proxy instead
-of the localhost API URL.
+`COMMENT_MD_SHARE_BASE_URL` on the **server** (uncomment it in
+`docker-compose.yml`). The server then bakes that base into the
+`shareUrl` it returns from `note.create` / `note.update`, and every CLI /
+MCP client that talks to the server gets the right link without any
+per-client configuration. The CLI accepts the same env var as a local
+override for testing.

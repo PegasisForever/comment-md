@@ -77,13 +77,14 @@ spec.md
 | `HOST` | `127.0.0.1` | Bind address |
 | `PORT` | `3210` | HTTP port |
 | `DATABASE_URL` | `file:./data/comment-md.db` | SQLite path for Prisma |
+| `COMMENT_MD_SHARE_BASE_URL` | _(unset)_ | Optional base URL used in the `shareUrl` field returned by `note.create` / `note.update`. When unset the server falls back to `X-Forwarded-Proto` + `X-Forwarded-Host` headers (if present, set by a reverse proxy) and finally to the inbound request's own scheme + Host header. Trailing slashes are stripped. |
 
 ### CLI
 
 | Env var | Required | Description |
 |---------|----------|-------------|
 | `COMMENT_MD_SERVER_URL` | yes | Base URL, e.g. `http://127.0.0.1:3210` (no trailing slash) |
-| `COMMENT_MD_SHARE_BASE_URL` | no | Optional base URL used for the share link printed by `create`/`update`. If unset, the CLI uses `COMMENT_MD_SERVER_URL` as the share base. Trailing slashes are stripped. |
+| `COMMENT_MD_SHARE_BASE_URL` | no | Optional **client-side override** for the share URL. When set, the CLI replaces the `shareUrl` returned by the server with `<override>/notes/<noteId>`. The canonical place to configure the share base is the **server** (see [Configuration § Server](#server)); this CLI-side knob exists only for local testing against a server that doesn't know its public hostname. |
 
 - **One server only** — no register/alias config files.
 - Binary name: **`comment-md`**.
@@ -210,7 +211,8 @@ Both commands write **exactly two lines** on success:
 ```
 
 - `<noteId>` is the note's opaque id.
-- `<shareUrl>` is `<base>/notes/<noteId>` where `<base>` is `COMMENT_MD_SHARE_BASE_URL` if set, otherwise `COMMENT_MD_SERVER_URL`. Trailing slashes on the base are stripped before concatenation.
+- `<shareUrl>` comes from the server: `note.create` / `note.update` return `{ noteId, shareUrl }` and the CLI prints what's returned. The server builds the URL from `COMMENT_MD_SHARE_BASE_URL` if set, otherwise from `X-Forwarded-*` headers (when behind a proxy) or the inbound `Host` header.
+- If the CLI process **also** has `COMMENT_MD_SHARE_BASE_URL` set, that value wins — the CLI rebuilds the line as `<override>/notes/<noteId>`. This is the local-testing override.
 - This is a deliberate, parsed-by-line format: scripts read the id with `head -1` and the URL with `tail -1`. No JSON, no `versionId`.
 
 ### Title derivation

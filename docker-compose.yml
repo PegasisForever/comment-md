@@ -10,8 +10,12 @@ services:
       HOST: 0.0.0.0
       PORT: 3210
       DATABASE_URL: file:/data/comment-md.db
-      # Optional: when set, the CLI's `create`/`update` prints a public
-      # share URL using this base instead of COMMENT_MD_SERVER_URL.
+      # Optional: public origin of the server. When set, this is used in
+      # the `shareUrl` field returned by `note.create` / `note.update`
+      # (and therefore the second line of `comment-md create` / `update`
+      # stdout). Useful when the container sits behind a reverse proxy at
+      # a different hostname. When unset the server falls back to
+      # X-Forwarded-* headers or the inbound Host header.
       # COMMENT_MD_SHARE_BASE_URL: https://notes.example.com
     volumes:
       - comment-md-data:/data

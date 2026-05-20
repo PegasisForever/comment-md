@@ -85,7 +85,7 @@ const server = Bun.serve({
         endpoint: "/trpc",
         req,
         router: appRouter,
-        createContext: () => ({}),
+        createContext: ({ req }) => ({ req }),
         onError({ error, path }) {
           if (error.code === "INTERNAL_SERVER_ERROR") {
             console.error(`[trpc] error on ${path ?? "(unknown)"}:`, error);
