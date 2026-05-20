@@ -1,0 +1,26 @@
+services:
+  comment-md:
+    build: .
+    image: comment-md:latest
+    container_name: comment-md
+    restart: unless-stopped
+    ports:
+      - "3210:3210"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3210
+      DATABASE_URL: file:/data/comment-md.db
+      # Optional: when set, the CLI's `create`/`update` prints a public
+      # share URL using this base instead of COMMENT_MD_SERVER_URL.
+      # COMMENT_MD_SHARE_BASE_URL: https://notes.example.com
+    volumes:
+      - comment-md-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e 'fetch(\"http://127.0.0.1:3210/healthz\").then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  comment-md-data:

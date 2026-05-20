@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "types": ["bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "@comment-md/api": ["packages/api/src/index.ts"],
+      "@comment-md/api/*": ["packages/api/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build"]
+}

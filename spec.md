@@ -83,6 +83,7 @@ spec.md
 | Env var | Required | Description |
 |---------|----------|-------------|
 | `COMMENT_MD_SERVER_URL` | yes | Base URL, e.g. `http://127.0.0.1:3210` (no trailing slash) |
+| `COMMENT_MD_SHARE_BASE_URL` | no | Optional base URL used for the share link printed by `create`/`update`. If unset, the CLI uses `COMMENT_MD_SERVER_URL` as the share base. Trailing slashes are stripped. |
 
 - **One server only** — no register/alias config files.
 - Binary name: **`comment-md`**.
@@ -187,8 +188,8 @@ All procedures are **public** (no auth middleware). Shared input validation with
 ### Invocation
 
 ```bash
-comment-md create <path/to/file.md>                    # stdout: noteId only (single line)
-comment-md update <noteId> <path/to/file.md>           # exit 0 on success; no stdout required
+comment-md create <path/to/file.md>                    # stdout: two lines — noteId then share URL
+comment-md update <noteId> <path/to/file.md>           # stdout: two lines — noteId then share URL
 comment-md list-comments <noteId> [--include-resolved] # open threads only by default
 comment-md reply <threadId> "<content>"                # exit 0; author Agent
 comment-md resolve <threadId>                          # exit 0
@@ -198,7 +199,19 @@ comment-md resolve <threadId>                          # exit 0
 - `create` / `update` read the full file as UTF-8 markdown (may be **empty**).
 - `update` replaces the entire note body (no partial edits).
 - Errors: non-zero exit, message on stderr.
-- **`create` stdout:** **`noteId` only** — no JSON, no `versionId`.
+
+#### `create` / `update` stdout
+
+Both commands write **exactly two lines** on success:
+
+```
+<noteId>
+<shareUrl>
+```
+
+- `<noteId>` is the note's opaque id.
+- `<shareUrl>` is `<base>/notes/<noteId>` where `<base>` is `COMMENT_MD_SHARE_BASE_URL` if set, otherwise `COMMENT_MD_SERVER_URL`. Trailing slashes on the base are stripped before concatenation.
+- This is a deliberate, parsed-by-line format: scripts read the id with `head -1` and the URL with `tail -1`. No JSON, no `versionId`.
 
 ### Title derivation
 

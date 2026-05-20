@@ -1,0 +1,56 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Note {
+  id        String    @id @default(cuid())
+  title     String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  versions  Version[]
+}
+
+model Version {
+  id        String   @id @default(cuid())
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  markdown  String   @default("")
+  createdAt DateTime @default(now())
+  threads   Thread[]
+
+  @@index([noteId, createdAt])
+}
+
+model Thread {
+  id        String    @id @default(cuid())
+  versionId String
+  version   Version   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  resolved  Boolean   @default(false)
+  quote     String
+  prefix    String    @default("")
+  suffix    String    @default("")
+  start     Int
+  end       Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+
+  @@index([versionId, resolved])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author    String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
+}
