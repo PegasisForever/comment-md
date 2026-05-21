@@ -4,7 +4,7 @@ import type { AppRouter } from "@comment-md/api";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
-const VERSION = "0.1.2";
+const VERSION = "0.1.3";
 
 const USAGE = `comment-md — markdown notes with inline comments
 
