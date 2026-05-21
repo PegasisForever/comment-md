@@ -95,7 +95,7 @@ spec.md
 
 ### Note
 
-- Identified by `noteId` (opaque string, e.g. cuid).
+- Identified by `noteId` (opaque string — UUID v4 in this implementation).
 - Has many **versions**; the **latest** is derived per-query as the version with the greatest `createdAt` (no stored pointer — see [Database](#database-prisma-sketch)).
 - **`title`:** basename of the file path without extension (e.g. `docs/Plan Q2.md` → `Plan Q2`).
   - Set on **`create`** from the source file path.
@@ -294,7 +294,7 @@ thread <threadId> [resolved] anchor=<json-quoted quote>
 
 ```prisma
 model Note {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   title     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -302,7 +302,7 @@ model Note {
 }
 
 model Version {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   noteId    String
   note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
   markdown  String   @default("")
@@ -312,7 +312,7 @@ model Version {
 }
 
 model Thread {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   versionId  String
   version    Version  @relation(fields: [versionId], references: [id], onDelete: Cascade)
   resolved   Boolean  @default(false)
@@ -328,7 +328,7 @@ model Thread {
 }
 
 model Message {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   threadId  String
   thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author    String   // "Agent" | "User"

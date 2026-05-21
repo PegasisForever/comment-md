@@ -9,7 +9,7 @@ datasource db {
 }
 
 model Note {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   title     String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -17,7 +17,7 @@ model Note {
 }
 
 model Version {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   noteId    String
   note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
   markdown  String   @default("")
@@ -28,7 +28,7 @@ model Version {
 }
 
 model Thread {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   versionId String
   version   Version   @relation(fields: [versionId], references: [id], onDelete: Cascade)
   resolved  Boolean   @default(false)
@@ -45,7 +45,7 @@ model Thread {
 }
 
 model Message {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   threadId  String
   thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author    String
